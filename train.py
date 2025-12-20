@@ -49,7 +49,7 @@ class DataModule(LightningDataModule):
         shard_dir = os.path.join(self.data_dir, f'{self.num_shards}-shards')
         if os.path.exists(shard_dir):
             print("Loading existing tokenizer...")
-            self.tokenizer = torch.load(f"{self.data_dir}/tokenizer.pt")
+            self.tokenizer = torch.load(f"{self.data_dir}/tokenizer.pt", weights_only=False)
             print("...done!")
         else:
             print("Loading datasets...")
@@ -58,7 +58,7 @@ class DataModule(LightningDataModule):
             with open(f"{self.data_dir}/heldout_sequences.txt", "r") as f:
                 heldout_sequences = f.read().split("\n")
             with open(f"{self.data_dir}/tokenizer.pt", "rb") as f:
-                tokenizer = torch.load(f"{self.data_dir}/tokenizer.pt")
+                tokenizer = torch.load(f"{self.data_dir}/tokenizer.pt", weights_only=False)
 
             # Validate on 1000 heldout sequences during training
             heldout_subsample_size = 1000
