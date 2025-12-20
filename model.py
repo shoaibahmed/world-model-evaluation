@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset
-from transformers import GPT2Config, GPT2LMHeadModel
+# from transformers import GPT2Config, GPT2LMHeadModel
+from gpt2_model import GPT2Config, GPT2LMHeadModel
 from pytorch_lightning import LightningModule
 from torch.nn import functional as F
 import numpy as np
