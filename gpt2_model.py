@@ -22,6 +22,7 @@ from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask_for
 from transformers.modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
     CausalLMOutputWithCrossAttentions,
+    ModelOutput,
 )
 
 logger = logging.get_logger(__name__)
@@ -249,7 +250,7 @@ class GPT2Model(GPT2PreTrainedModel):
                 if v is not None
             )
 
-        return BaseModelOutputWithPastAndCrossAttentions(
+        return ModelOutput(
             last_hidden_state=hidden_states,
             past_key_values=past_key_values,
             hidden_states=all_hidden_states,
@@ -283,6 +284,8 @@ class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
             self.setup_for_next_lat_pred()
 
     def setup_for_next_lat_pred(self):
+        print("Setting up for next-latent prediction loss...")
+
         # Define hyperparameters (based on table 3) -- https://arxiv.org/abs/2511.05963
         self.pred_horizon = 8
         self.next_lat_lambda = 1.0
@@ -375,7 +378,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
         total_loss = loss
         _, seq_len = input_ids.size()
         loss_dict = {"next_tok": loss}
-        if loss is not None:
+        if self.next_lat_pred and loss is not None:
             assert labels is not None
             regression_loss = 0.
             kl_loss = 0.
