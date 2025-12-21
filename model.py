@@ -62,7 +62,7 @@ class GPT2Model(LightningModule):
         super().__init__()
         self.save_hyperparameters()
         config = GPT2Config(vocab_size=vocab_size, n_embd=n_embd, n_layer=n_layer, n_head=n_head, pad_token_id=tokenizer.pad_token_id)
-        self.model = GPT2LMHeadModel(config, next_lat_pred=next_lat_pred)
+        self.model = GPT2LMHeadModel(config, next_lat_pred=next_lat_pred, ignore_idx=PAD_TOKEN_ID)
         self.tokenizer = tokenizer
         self.validation_step_outputs = []
         self.train_step_outputs = []

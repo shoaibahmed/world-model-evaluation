@@ -269,10 +269,11 @@ class GPT2Model(GPT2PreTrainedModel):
 class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
     _tied_weights_keys = {"lm_head.weight": "transformer.wte.weight"}
 
-    def __init__(self, config, next_lat_pred: bool = False):
+    def __init__(self, config, next_lat_pred: bool = False, ignore_idx: int = 0):
         super().__init__(config)
         self.config = config
         self.next_lat_pred = next_lat_pred
+        self.ignore_idx = ignore_idx
 
         self.transformer = GPT2Model(config)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
@@ -298,7 +299,6 @@ class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
         )
 
         # Define the loss functions (with no reduction to support masking)
-        self.ignore_idx = -100
         self.loss_ce = torch.nn.CrossEntropyLoss(ignore_index=self.ignore_idx)
         self.loss_smooth_l1 = torch.nn.SmoothL1Loss(reduction='none')
         self.kl_div = torch.nn.KLDivLoss(reduction='none', log_target=False)  # Note: input in log space
