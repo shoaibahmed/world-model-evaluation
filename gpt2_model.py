@@ -284,6 +284,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
 
     def setup_for_next_lat_pred(self):
         # Define hyperparameters (based on table 3) -- https://arxiv.org/abs/2511.05963
+        self.pred_horizon = 8
         self.next_lat_lambda = 1.0
         self.kl_lambda = 0.1
         self.dynamics_hidden_dim = 1536
@@ -356,8 +357,6 @@ class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
             return_dict=return_dict,
         )
         hidden_states = transformer_outputs.last_hidden_state
-        if self.next_lat_pred:
-            raise NotImplementedError
 
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
         logits = self.lm_head(hidden_states[:, slice_indices, :])
@@ -372,12 +371,82 @@ class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
                 **kwargs,
             )
 
+        # Compute the next-latent prediction loss
+        total_loss = loss
+        _, seq_len = input_ids.size()
+        loss_dict = {"next_tok": loss}
+        if loss is not None:
+            assert labels is not None
+            regression_loss = 0.
+            kl_loss = 0.
+            probs = torch.softmax(logits.detach(), dim=-1)
+            input_latents = hidden_states  # start with the original latents
+
+            # Note: we don't call detach from the original embeddings as it wasn't specified in the algo
+            tokens = transformer_outputs.inputs_embeds  # embeddings without positional encodings (not specified in the paper)
+
+            # Ignore the prefix tokens like the CE loss
+            # Target should be -1 for the tokens to be ignored at the output
+            # Only use the input and labels for the kept tokens
+            keep_mask = (labels != self.ignore_idx).float()  # (B, T)
+
+            max_horizon = min(self.pred_horizon, seq_len - 1)
+            for horizon in range(1, max_horizon + 1):
+                # Get the input and target latents
+                target_latents = hidden_states[:, horizon:, :]  # (B, T-h, D)
+                next_token = tokens[:, horizon:]  # (B, T-h, D)
+                target_probs = probs[:, horizon:, :]  # (B, T-h, V)
+                input_latents = input_latents[:, :-1, :]  # (B, T-h, D)
+
+                # Mask for positions where we have valid labels
+                mask = keep_mask[:, horizon:]  # (B, T-h)
+                mask_count = mask.sum().clamp_min(1.0)  # avoid div by zero
+
+                # Roll the dynamics model to predict the next latents: (B, T-h, D)
+                predicted_latents = self.latent_dynamics_model(next_token, input_latents)
+
+                # Compute the smooth L1 loss on the predicted latents (note: detach is important)
+                reg_per_loc = self.loss_smooth_l1(
+                    predicted_latents, target_latents.detach()
+                )
+                if self.mask_latent_reg:
+                    reg_sum = (reg_per_loc.mean(dim=-1) * mask).sum()  # (B, T-h, D) -> (B, T-h) -> scalar
+                    regression_loss = regression_loss + reg_sum / mask_count
+                else:
+                    regression_loss = regression_loss + reg_per_loc.mean()  # (B, T-h, D) -> scalar
+
+                # Compute the KL loss using the output head (with the output head frozen)
+                # A computationally bad but visually elegant way to do it would be:
+                # copy.deepcopy(self.lm_head)(predicted_latents)
+                predicted_logits = torch.nn.functional.linear(
+                    predicted_latents, 
+                    self.lm_head.weight.detach(), 
+                    bias=self.lm_head.bias.detach() if self.lm_head.bias is not None else None
+                )
+                predicted_log_probs = torch.nn.functional.log_softmax(predicted_logits, dim=-1)
+
+                kl_per_pos = self.kl_div(
+                    predicted_log_probs, target_probs.detach()
+                ).sum(dim=-1)  # (B, T-h, V) -> (B, T-h)
+                kl_sum = (kl_per_pos * mask).sum()
+                kl_loss = kl_loss + kl_sum / mask_count
+
+                # Use the predicted latents as the input for the next iteration
+                input_latents = predicted_latents
+
+            # Compute the total loss
+            regression_loss = regression_loss / max_horizon
+            kl_loss = kl_loss / max_horizon
+            loss_dict["regression"] = regression_loss
+            loss_dict["kl"] = kl_loss
+            total_loss = loss + self.next_lat_lambda * regression_loss + self.kl_lambda * kl_loss
+
         if not return_dict:
             output = (logits,) + transformer_outputs[1:]
-            return ((loss,) + output) if loss is not None else output
+            return ((total_loss,) + output) if total_loss is not None else output
 
         return CausalLMOutputWithCrossAttentions(
-            loss=loss,
+            loss=total_loss,
             logits=logits,
             past_key_values=transformer_outputs.past_key_values,
             hidden_states=transformer_outputs.hidden_states,
