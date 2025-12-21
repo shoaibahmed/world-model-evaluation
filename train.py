@@ -20,6 +20,8 @@ def get_args():
                         help='Embedding dimension')
     parser.add_argument('--n_head', type=int, default=12,
                         help='Number of attention heads')
+    parser.add_argument('--next_lat_pred', type=bool, default=False,
+                        help='Use next-latent prediction loss')
     parser.add_argument('--batch_size_per_gpu', type=int, default=6,
                         help='Batch size per GPU')
     parser.add_argument('--eval_every', type=int, default=5000,
@@ -153,6 +155,7 @@ def main():
                       n_embd=args.n_embd,
                       n_layer=args.num_layers,
                       n_head=args.n_head,
+                      next_lat_pred=args.next_lat_pred,
     )
     trainer.fit(model, data_module, ckpt_path=resume_checkpoint)
 

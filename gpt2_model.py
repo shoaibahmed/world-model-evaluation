@@ -27,6 +27,36 @@ from transformers.modeling_outputs import (
 logger = logging.get_logger(__name__)
 
 
+class LatentDynamicsModel(torch.nn.Module):
+    def __init__(self, n_embd: int, hidden_dim: int):
+        super().__init__()
+
+        # Follow the setup from https://arxiv.org/abs/2511.05963 (appendix C)
+        # Note: we are using the representation of the model after the final layer norm
+        input_dim = 2 * n_embd  # previous hidden dim and input embedding
+        self.latent_dynamics_model = torch.nn.Sequential(
+            torch.nn.LayerNorm(input_dim),
+            torch.nn.Linear(input_dim, hidden_dim),
+            torch.nn.GELU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.GELU(),
+            torch.nn.Linear(hidden_dim, n_embd),
+        ) # three layered MLP
+
+        # Initialize the weights
+        self.init_weights()
+
+    def init_weights(self):
+        # Initialize such that the output of the model is identity (via the skip connection)
+        self.latent_dynamics_model[-1].weight.data.zero_()
+        self.latent_dynamics_model[-1].bias.data.zero_()
+
+    def forward(self, token_embed: torch.Tensor, h: torch.Tensor) -> torch.Tensor:
+        input_state = torch.cat([token_embed, h], dim=-1)  # concatenate in hidden dim
+        pred_h = h + self.latent_dynamics_model(input_state)
+        return pred_h
+
+
 @auto_docstring
 class GPT2Model(GPT2PreTrainedModel):
     def __init__(self, config):
@@ -225,6 +255,7 @@ class GPT2Model(GPT2PreTrainedModel):
             hidden_states=all_hidden_states,
             attentions=all_self_attentions,
             cross_attentions=all_cross_attentions,
+            inputs_embeds=inputs_embeds,  # added for next-latent loss
         )
 
 
@@ -237,13 +268,37 @@ class GPT2Model(GPT2PreTrainedModel):
 class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
     _tied_weights_keys = {"lm_head.weight": "transformer.wte.weight"}
 
-    def __init__(self, config):
+    def __init__(self, config, next_lat_pred: bool = False):
         super().__init__(config)
+        self.config = config
+        self.next_lat_pred = next_lat_pred
+
         self.transformer = GPT2Model(config)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
         # Initialize weights and apply final processing
         self.post_init()
+
+        if self.next_lat_pred:
+            self.setup_for_next_lat_pred()
+
+    def setup_for_next_lat_pred(self):
+        # Define hyperparameters (based on table 3) -- https://arxiv.org/abs/2511.05963
+        self.next_lat_lambda = 1.0
+        self.kl_lambda = 0.1
+        self.dynamics_hidden_dim = 1536
+
+        # Setup the latent dynamics model
+        self.latent_dynamics_model = LatentDynamicsModel(
+            self.config.n_embd, hidden_dim=self.dynamics_hidden_dim
+        )
+
+        # Define the loss functions (with no reduction to support masking)
+        self.ignore_idx = -100
+        self.loss_ce = torch.nn.CrossEntropyLoss(ignore_index=self.ignore_idx)
+        self.loss_smooth_l1 = torch.nn.SmoothL1Loss(reduction='none')
+        self.kl_div = torch.nn.KLDivLoss(reduction='none', log_target=False)  # Note: input in log space
+        self.mask_latent_reg = False  # the paper mentioned to not use masking for latents
 
     @auto_docstring
     def forward(
@@ -300,7 +355,9 @@ class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        hidden_states = transformer_outputs[0]
+        hidden_states = transformer_outputs.last_hidden_state
+        if self.next_lat_pred:
+            raise NotImplementedError
 
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
         logits = self.lm_head(hidden_states[:, slice_indices, :])
