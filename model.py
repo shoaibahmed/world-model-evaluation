@@ -75,7 +75,7 @@ class GPT2Model(LightningModule):
     def training_step(self, batch, batch_idx):
         loss = self(batch['input_ids'], batch['attention_mask'], batch['labels'])
         self.log('train_loss', loss, prog_bar=True, logger=True)
-        self.train_step_outputs.append({'train_loss': loss.detach().cpu()})
+        self.train_step_outputs.append({'train_loss': loss.detach()})
         return loss
     
     def on_train_epoch_end(self):
