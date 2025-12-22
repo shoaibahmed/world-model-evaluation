@@ -24,9 +24,10 @@ detour_prob = args.detour_prob
 num_trials = args.num_trials
 detour_type = args.detour_type
 next_lat_pred = args.next_lat_pred
+model_name = args.model_name
 
 model = load_model(data, use_untrained_model, next_lat_pred,
-                   checkpoint_name=args.model_name)
+                   checkpoint_name=model_name)
 tokenizer = model.tokenizer
 valid_turns = tokenizer.valid_turns
 node_and_direction_to_neighbor = tokenizer.node_and_direction_to_neighbor
