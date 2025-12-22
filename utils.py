@@ -151,7 +151,7 @@ def load_model(data, use_untrained_model=False, next_lat_pred=False,
     raise ValueError(f"Invalid data: {data}")
 
   device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-  tokenizer = torch.load(f"{data_dir}/tokenizer.pt")
+  tokenizer = torch.load(f"{data_dir}/tokenizer.pt", weights_only=False)
 
   # Set seed
   torch.manual_seed(42)
