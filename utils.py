@@ -137,7 +137,7 @@ def is_valid_sequence(sample, valid_turns, node_and_direction_to_neighbor):
   return False
 
 
-def load_model(data, use_untrained_model=False):
+def load_model(data, use_untrained_model=False, next_lat_pred=False):
   data_dir = f'data/{data}'
   model_dir = f'ckpts/{data}'
 
@@ -157,7 +157,8 @@ def load_model(data, use_untrained_model=False):
                     vocab_size=len(tokenizer.word_to_id),
                     n_embd=n_embd,
                     n_layer=num_layers,
-                    n_head=n_head,)
+                    n_head=n_head,
+                    next_lat_pred=next_lat_pred)
 
   if not use_untrained_model:
     checkpoint_path = f"{model_dir}/model.ckpt"
