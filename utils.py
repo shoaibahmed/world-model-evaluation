@@ -1,3 +1,4 @@
+import os
 from collections import defaultdict
 from model import GPT2Model, SimpleTokenizer, TextDataset, collate_fn
 import numpy as np
@@ -137,7 +138,8 @@ def is_valid_sequence(sample, valid_turns, node_and_direction_to_neighbor):
   return False
 
 
-def load_model(data, use_untrained_model=False, next_lat_pred=False):
+def load_model(data, use_untrained_model=False, next_lat_pred=False,
+               checkpoint_name: str = None):
   data_dir = f'data/{data}'
   model_dir = f'ckpts/{data}'
 
@@ -162,7 +164,10 @@ def load_model(data, use_untrained_model=False, next_lat_pred=False):
 
   if not use_untrained_model:
     checkpoint_path = f"{model_dir}/model.ckpt"
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    if checkpoint_name is not None:
+      checkpoint_path = f"./ckpts/{checkpoint_name}/last.ckpt"
+    assert os.path.exists(checkpoint_path), checkpoint_path
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     model.load_state_dict(checkpoint['state_dict'])
     del checkpoint
 
