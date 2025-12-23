@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset
-from transformers import GPT2Config, GPT2LMHeadModel
+# from transformers import GPT2Config, GPT2LMHeadModel
+from gpt2_model import GPT2Config, GPT2LMHeadModel
 from pytorch_lightning import LightningModule
 from torch.nn import functional as F
 import numpy as np
@@ -57,11 +58,11 @@ class TextDataset(Dataset):
 
 
 class GPT2Model(LightningModule):
-    def __init__(self, tokenizer, vocab_size=50265, n_embd=128, n_layer=12, n_head=4):
+    def __init__(self, tokenizer, vocab_size=50265, n_embd=128, n_layer=12, n_head=4, next_lat_pred=False):
         super().__init__()
         self.save_hyperparameters()
         config = GPT2Config(vocab_size=vocab_size, n_embd=n_embd, n_layer=n_layer, n_head=n_head, pad_token_id=tokenizer.pad_token_id)
-        self.model = GPT2LMHeadModel(config)
+        self.model = GPT2LMHeadModel(config, next_lat_pred=next_lat_pred, ignore_idx=PAD_TOKEN_ID)
         self.tokenizer = tokenizer
         self.validation_step_outputs = []
         self.train_step_outputs = []
@@ -74,7 +75,7 @@ class GPT2Model(LightningModule):
     def training_step(self, batch, batch_idx):
         loss = self(batch['input_ids'], batch['attention_mask'], batch['labels'])
         self.log('train_loss', loss, prog_bar=True, logger=True)
-        self.train_step_outputs.append({'train_loss': loss})
+        self.train_step_outputs.append({'train_loss': loss.detach()})
         return loss
     
     def on_train_epoch_end(self):

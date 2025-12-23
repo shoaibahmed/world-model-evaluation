@@ -10,7 +10,9 @@ import pickle
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data', type=str, default='shortest-paths')
+parser.add_argument('--model-name', type=str, default='next-tok')
 parser.add_argument('--use-untrained-model', action='store_true')
+parser.add_argument('--next-lat-pred', action='store_true')
 parser.add_argument('--detour-prob', type=float, default=0.01)
 parser.add_argument('--num-trials', type=int, default=100)
 parser.add_argument('--detour-type', type=str, default='random_valid', help='Options: least_likely, random_valid, second_most_likely')
@@ -21,8 +23,11 @@ use_untrained_model = args.use_untrained_model
 detour_prob = args.detour_prob
 num_trials = args.num_trials
 detour_type = args.detour_type
+next_lat_pred = args.next_lat_pred
+model_name = args.model_name
 
-model = load_model(data, use_untrained_model)
+model = load_model(data, use_untrained_model, next_lat_pred,
+                   checkpoint_name=model_name)
 tokenizer = model.tokenizer
 valid_turns = tokenizer.valid_turns
 node_and_direction_to_neighbor = tokenizer.node_and_direction_to_neighbor
