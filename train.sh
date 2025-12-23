@@ -4,17 +4,21 @@ epochs=1
 data="shortest-paths"
 
 base_args="--data ${data}"
-next_tok_args="${base_args} --model_name ${data}-next-tok-ep${epochs}"
-next_lat_args="${base_args} --model_name ${data}-next-lat-ep${epochs}"
+next_tok_args="${base_args} --model-name ${data}-next-tok-ep${epochs}"
+next_lat_args="${base_args} --model-name ${data}-next-lat-ep${epochs} --next-lat-pred"
 
 # Train models
-python train.py ${next_tok_args} --max_epochs ${epochs} --use_wandb True
-python train.py ${next_lat_args} --next_lat_pred True --max_epochs ${epochs} --use_wandb True
+python train.py ${next_tok_args} --max-epochs ${epochs} --use-wandb
+python train.py ${next_lat_args} --max-epochs ${epochs} --use-wandb
 
 # Perform detour analysis
 python detour_analysis.py ${next_tok_args}
-python detour_analysis.py ${next_lat_args} --next-lat-pred
+python detour_analysis.py ${next_lat_args}
 
 # Perform compression test
 python compression_test.py ${next_tok_args}
-python compression_test.py ${next_lat_args} --next-lat-pred
+python compression_test.py ${next_lat_args}
+
+# Perform distinction test
+python distinction_test.py ${next_tok_args}
+python distinction_test.py ${next_lat_args}

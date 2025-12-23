@@ -14,27 +14,27 @@ import argparse
    
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--num_layers', type=int, default=12,
+    parser.add_argument('--num-layers', type=int, default=12,
                         help='Number of transformer layers')
-    parser.add_argument('--n_embd', type=int, default=768,
+    parser.add_argument('--n-embd', type=int, default=768,
                         help='Embedding dimension')
-    parser.add_argument('--n_head', type=int, default=12,
+    parser.add_argument('--n-head', type=int, default=12,
                         help='Number of attention heads')
-    parser.add_argument('--next_lat_pred', type=bool, default=False,
+    parser.add_argument('--next-lat-pred', action='store_true',
                         help='Use next-latent prediction loss')
-    parser.add_argument('--batch_size_per_gpu', type=int, default=6,
+    parser.add_argument('--batch-size-per-gpu', type=int, default=6,
                         help='Batch size per GPU')
-    parser.add_argument('--eval_every', type=int, default=5000,
+    parser.add_argument('--eval-every', type=int, default=5000,
                         help='Evaluation frequency in steps')
     parser.add_argument('--data', type=str, default='shortest-paths',
                         help='Dataset name (one of "shortest-paths", '
                              '"random-walks", "noisy-graphs")')
-    parser.add_argument('--model_name', type=str, default='tmp',
+    parser.add_argument('--model-name', type=str, default='tmp',
                         help='Name of the model (for saving and logging)')
-    parser.add_argument('--max_epochs', type=int, default=25,
+    parser.add_argument('--max-epochs', type=int, default=25,
                         help='Maximum number of epochs')
-    parser.add_argument('--use_wandb', type=bool, default=False,
-                        help='Whether to use Weights & Biases logging')
+    parser.add_argument('--use-wandb', action='store_true',
+                        help='Use wandb for logging')
     return parser.parse_args()
 
 
