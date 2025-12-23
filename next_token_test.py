@@ -9,12 +9,18 @@ import pdb
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data', type=str, default='shortest-paths')
+parser.add_argument('--model-name', type=str, default='next-tok')
 parser.add_argument('--use-untrained-model', action='store_true')
+parser.add_argument('--next-lat-pred', action='store_true')
 args = parser.parse_args()
+
 data = args.data
 use_untrained_model = args.use_untrained_model
+next_lat_pred = args.next_lat_pred
+model_name = args.model_name
 
-model = load_model(data, use_untrained_model)
+model = load_model(data, use_untrained_model, next_lat_pred,
+                   checkpoint_name=model_name)
 tokenizer = model.tokenizer
 valid_turns = tokenizer.valid_turns
 node_and_direction_to_neighbor = tokenizer.node_and_direction_to_neighbor
