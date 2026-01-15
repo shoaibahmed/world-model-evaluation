@@ -278,8 +278,6 @@ class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
         self.next_lat_pred = next_lat_pred
         self.all_latent_pred = all_latent_pred
         self.ignore_idx = ignore_idx
-        if self.all_latent_pred:
-            raise NotImplementedError
 
         self.transformer = GPT2Model(config)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
@@ -300,21 +298,15 @@ class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
         self.dynamics_hidden_dim = 1536
 
         # Setup the latent dynamics model
-        if self.all_latent_pred:
-            # One dynamics model for each layer
-            self.latent_dynamics_model = torch.nn.ModuleList(
-                [
-                    LatentDynamicsModel(
-                        self.config.n_embd, hidden_dim=self.dynamics_hidden_dim
-                    )
-                    for _ in range(self.config.n_layer)
-                ]
-            )
-        else:
-            # Single dynamics model for the last layer
-            self.latent_dynamics_model = LatentDynamicsModel(
-                self.config.n_embd, hidden_dim=self.dynamics_hidden_dim
-            )
+        num_dynamics_models = self.config.n_layer if self.all_latent_pred else 1
+        self.latent_dynamics_model = torch.nn.ModuleList(
+            [
+                LatentDynamicsModel(
+                    self.config.n_embd, hidden_dim=self.dynamics_hidden_dim
+                )
+                for _ in range(num_dynamics_models)
+            ]
+        )
 
         # Define the loss functions (with no reduction to support masking)
         self.loss_ce = torch.nn.CrossEntropyLoss(ignore_index=self.ignore_idx)
@@ -422,7 +414,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
                 # List with only the last hidden states
                 all_hidden_states = (hidden_states,)
 
-            for hidden_states in all_hidden_states:
+            for layer_idx, hidden_states in enumerate(all_hidden_states):
                 input_latents = hidden_states  # start with the original latents
                 for horizon in range(1, max_horizon + 1):
                     # Get the input and target latents
@@ -436,7 +428,9 @@ class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
                     mask_count = mask.sum().clamp_min(1.0)  # avoid div by zero
 
                     # Roll the dynamics model to predict the next latents: (B, T-h, D)
-                    predicted_latents = self.latent_dynamics_model(next_token, input_latents)
+                    predicted_latents = self.latent_dynamics_model[layer_idx](
+                        next_token, input_latents,
+                    )
 
                     # Compute the smooth L1 loss on the predicted latents (note: detach is important)
                     reg_per_loc = self.loss_smooth_l1(
