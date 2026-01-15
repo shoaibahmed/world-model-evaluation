@@ -22,6 +22,8 @@ def get_args():
                         help='Number of attention heads')
     parser.add_argument('--next-lat-pred', action='store_true',
                         help='Use next-latent prediction loss')
+    parser.add_argument('--all-latent-pred', action='store_true',
+                        help='Apply next-latent prediction loss on all layers (default: False)')
     parser.add_argument('--batch-size-per-gpu', type=int, default=6,
                         help='Batch size per GPU')
     parser.add_argument('--eval-every', type=int, default=5000,
@@ -112,6 +114,9 @@ class DataModule(LightningDataModule):
 
 def main():
     args = get_args()
+    assert not args.next_lat_pred or args.all_latent_pred, \
+        "All latent prediction is only supported when next latent prediction is selected"
+
     torch.set_float32_matmul_precision('medium')
     num_gpus = find_usable_cuda_devices()
 
@@ -156,6 +161,7 @@ def main():
                       n_layer=args.num_layers,
                       n_head=args.n_head,
                       next_lat_pred=args.next_lat_pred,
+                      all_latent_pred=args.all_latent_pred,
     )
     trainer.fit(model, data_module, ckpt_path=resume_checkpoint)
 

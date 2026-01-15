@@ -269,11 +269,17 @@ class GPT2Model(GPT2PreTrainedModel):
 class GPT2LMHeadModel(GPT2PreTrainedModel, GenerationMixin):
     _tied_weights_keys = {"lm_head.weight": "transformer.wte.weight"}
 
-    def __init__(self, config, next_lat_pred: bool = False, ignore_idx: int = 0):
+    def __init__(self, config, next_lat_pred: bool = False, all_latent_pred: bool = False,
+                 ignore_idx: int = 0):
+        assert not all_latent_pred or next_lat_pred, \
+            "All latent prediction is only supported when next latent prediction is selected"
         super().__init__(config)
         self.config = config
         self.next_lat_pred = next_lat_pred
+        self.all_latent_pred = all_latent_pred
         self.ignore_idx = ignore_idx
+        if self.all_latent_pred:
+            raise NotImplementedError
 
         self.transformer = GPT2Model(config)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
