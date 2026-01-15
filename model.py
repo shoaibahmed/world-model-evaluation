@@ -58,7 +58,8 @@ class TextDataset(Dataset):
 
 
 class GPT2Model(LightningModule):
-    def __init__(self, tokenizer, vocab_size=50265, n_embd=128, n_layer=12, n_head=4, next_lat_pred=False):
+    def __init__(self, tokenizer, vocab_size=50265, n_embd=128, n_layer=12, n_head=4,
+                 next_lat_pred=False, max_list_size=None):
         super().__init__()
         self.save_hyperparameters()
         config = GPT2Config(vocab_size=vocab_size, n_embd=n_embd, n_layer=n_layer, n_head=n_head, pad_token_id=tokenizer.pad_token_id)
@@ -66,6 +67,7 @@ class GPT2Model(LightningModule):
         self.tokenizer = tokenizer
         self.validation_step_outputs = []
         self.train_step_outputs = []
+        self.max_list_size = max_list_size
 
     def forward(self, input_ids, attention_mask=None, labels=None):
         output = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -76,8 +78,10 @@ class GPT2Model(LightningModule):
         loss = self(batch['input_ids'], batch['attention_mask'], batch['labels'])
         self.log('train_loss', loss, prog_bar=True, logger=True)
         self.train_step_outputs.append({'train_loss': loss.detach()})
+        if self.max_list_size is not None and len(self.train_step_outputs) > self.max_list_size:
+            del self.train_step_outputs[0]  # pop from the list
         return loss
-    
+
     def on_train_epoch_end(self):
         avg_loss = torch.stack([x['train_loss'] for x in self.train_step_outputs]).mean()
         self.log('train_loss', avg_loss, prog_bar=True, sync_dist=True)
